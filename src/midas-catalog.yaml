@@ -1,0 +1,1275 @@
+# =============================================================================
+# MIDAS Catalog — LinkML schema
+# STAGE 1 — COMPLETE MODEL: Thing + CreativeWork base, all value/nested classes,
+# AND all resource subtypes (Dataset, SoftwareApplication + Dashboard,
+# DataCatalog + Repository, Literature + ModelingStudy/
+# DiseaseSpecificCollection, LearningResource + Course, CourseInstance) plus the
+# subtype-only value classes (DataDownload, ComputerLanguage,
+# PropertyValue). Self-contained: no dangling range references (gen-runnable).
+# Every SchemaOrgUtil @JsonldType class and every registry slot is now represented.
+#
+# Authored by mirroring the SchemaOrgUtil registry (createSchemaOrgResources)
+# and the inner-class field types. Ground truth used:
+#   - slot_uri + description: the emitted @context of a regenerated record
+#     (the registry as rendered) — NOT the @JsonldProperty field annotations,
+#     which are runtime-ignored (e.g. inLanguage emits schema:inLanguage even
+#     though its field annotation says schema:language).
+#   - range + multivalued: the Java field types (Set/List -> multivalued;
+#     element/scalar type -> range). Never stored; derived, as LinkML does.
+#
+# Value classes now defined in this slice (previously dangling):
+#   ConformsTo, Language, Organization, Location, Person, Place,
+#   License, DefinedTerm, DataCatalog, RelatedData, ProvActivity, ProvEntity,
+#   ProvAgent.
+# DataCatalog/RelatedData are is_a CreativeWork (DataCatalog carries no
+# type-specific slots; it is fully modeled, not stubbed). ConformsTo and the
+# Prov* nodes are standalone (not Thing).
+#
+# Key decisions embodied (see decision log / handoff for rationale):
+#   - Thing is its own class; CreativeWork is_a Thing. Twelve classes extend
+#     Thing in SchemaOrgUtil and the nested objects in a record carry Thing's
+#     identity/naming slots, so Thing is their shared inheritance home.
+#   - DefinedTerm-valued slots range over the DefinedTerm CLASS (not enums),
+#     preserving the jsonld -> LinkML -> jsonld round-trip.
+#   - recommended is tagged on the CANONICAL slot only (12 total); derived FAIR
+#     mirrors stay recommended:false and are linked to their canonical via
+#     mapping slots. Strength: exact_mappings ONLY for true cross-vocabulary
+#     synonyms (schema:name <-> dcterms:title, schema:description <->
+#     dcterms:description); close_mappings for everything else, incl. same-datum
+#     value copies (accessUrl -> dcat:landingPage ->
+#     schema:datePublished) and projections. The two synonym exact_mappings live
+#     on the canonical name/description slots, since their dct mirror slots were
+#     collapsed; surviving mirrors carry their own close_mappings.
+#   - No maximum_cardinality anywhere (the model has no upper bounds).
+#   - @container:@set is intentionally NOT modeled here; LinkML derives
+#     multivalued from the flag and the gen-jsonld-context diff allowlists the
+#     @container additions (MIDAS emission is unchanged).
+# =============================================================================
+
+id: https://w3id.org/midas-catalog/schema
+name: midas-catalog
+title: MIDAS Catalog Metadata Schema
+version: 1.0.0-SNAPSHOT
+description: >-
+  LinkML representation of the MIDAS Coordination Center catalog's JSON-LD
+  metadata model. Stage 1 covers the Thing identity/naming base and the shared
+  CreativeWork slice inherited by every resource type.
+default_range: string
+default_prefix: midas   # MIDAS's own namespace (the LinkML-recommended pattern: keep default_prefix
+  # local, reuse external vocab via slot_uri/class_uri). Un-mapped element
+  # definition IRIs are minted midas:{name}, not squatted as fictitious
+  # schema:{name}. The generated @context's @vocab is therefore the midas
+  # namespace — but it is INERT: every emitted key has an explicit term
+  # definition, so nothing falls through to @vocab (verified: 0 undefined keys).
+  # Emitted term IRIs are unchanged (name -> schema:name,
+  # catalogLicense -> schema:license, ...); only the OWL element-definition
+# IRIs move from schema:{name} to honest midas:{name}.
+
+prefixes:
+  midas: https://w3id.org/midas-catalog/schema/
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  dct: http://purl.org/dc/terms/                 # alias, same expansion as dcterms
+  dc: http://purl.org/dc/elements/1.1/
+  dcat: http://www.w3.org/ns/dcat#
+  prov: http://www.w3.org/ns/prov#
+  pav: http://purl.org/pav/
+  skos: http://www.w3.org/2004/02/skos/core#
+  geonames: https://www.geonames.org/ontology#
+  vcard: http://www.w3.org/2006/vcard/ns#
+  lrmi: https://purl.org/dcx/lrmi-terms/
+  bioschemas: https://bioschemas.org/profiles/Dataset/1.0-RELEASE   # verbatim profile URL, not a namespace
+  # declared but unused by any slot — present so gen-jsonld-context reproduces
+  # the six pure-namespace prefixes MIDAS emits:
+  foaf: http://xmlns.com/foaf/0.1/
+  rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
+  rdfs: http://www.w3.org/2000/01/rdf-schema#
+
+# -----------------------------------------------------------------------------
+# Classes
+# -----------------------------------------------------------------------------
+# NOTE: this schema deliberately does NOT `import linkml:types`. The stock types
+# module declares `schema: http://schema.org/` (http) and uses it for datatype
+# mappings, which collides with our required `schema: https://schema.org/` (https)
+# under LinkML's strict prefix merge. Rather than patch/importmap the upstream file
+# (which would drift on any LinkML upgrade), we define the four base types we use
+# locally. `uri`/`uriorcurie` map to xsd:anyURI exactly as upstream does, so IRI
+# slots type identically to stock LinkML. Add more base types here (integer, float,
+# date, datetime, decimal, ...) if a later slice needs them — LinkML flags an
+# "unrecognized range" error that tells you exactly which one.
+types:
+  string:
+    uri: xsd:string
+    base: str
+    description: A character string
+  boolean:
+    uri: xsd:boolean
+    base: Bool
+    repr: bool
+    description: A binary (true or false) value
+  uri:
+    uri: xsd:anyURI
+    base: URI
+    repr: str
+    description: a complete URI
+  uriorcurie:
+    uri: xsd:anyURI
+    base: URIorCURIE
+    repr: str
+    description: a URI or a CURIE
+
+classes:
+
+  Thing:
+    class_uri: schema:Thing
+    description: >-
+      Root of the type hierarchy. Carries the identity and naming slots shared
+      by every node that appears in a record's JSON-LD — the top-level resource
+      and every nested object (Person, Organization, Place, Language,
+      DefinedTerm, License, etc.). Modeled as its own class, not folded into
+      CreativeWork, because those nested classes are Things but not
+      CreativeWorks.
+    slots:
+      - id
+      - identifier
+      - name
+      - description
+      - url
+      - sameAs
+
+  CreativeWork:
+    class_uri: schema:CreativeWork
+    is_a: Thing
+    description: >-
+      Shared base for every MIDAS resource type (Dataset, SoftwareApplication,
+      DataCatalog, LearningResource, and the Collection subtypes). Every slice
+      below inherits these slots; type-specific slots are added by the subtype
+      classes in later slices.
+    slots:
+      # --- primary ---
+      - conformsTo
+      - includedInDataCatalog
+      - about
+      - keywords
+      - accessUrl
+      - endpointUrl
+      - endpointDescription
+      - inLanguage
+      - creator
+      - lastDatePublished
+      - datePublished
+      - dateModified
+      - catalogLicense
+      - sourceLicense
+      - version
+      - rights
+      - accessibleForFree
+      - publisher
+      - places
+      - additionalProperty
+      - temporalCoverage
+      - externalIdentifiers
+      - relatedData
+      - bibliographicCitation
+      # --- provenance (PROV-O / PAV) ---
+      - wasGeneratedBy
+      - wasDerivedFrom
+      - pavCreatedBy
+      - pavDerivedFrom
+    slot_usage:
+      name: { required: true }
+      description: { required: true }
+
+  # ---- referenced value / nested classes (resolve the CreativeWork-base ranges) ----
+
+  ConformsTo:
+    class_uri: dcterms:Standard
+    description: >-
+      A metadata standard/specification this resource's metadata conforms to
+      (Schema.org, Bioschemas, Dublin Core, DCAT, ...). Standalone node typed as
+      dcterms:Standard; deliberately NOT a Thing.
+    slots:
+      - id
+      - name
+      - description
+      - url
+      - subjectAreas
+      - standardType
+      - standardVersion
+
+  Language:
+    class_uri: schema:Language
+    is_a: Thing
+    description: >-
+      A language of the resource content: an ISO 639-2 code as name plus, when
+      available, a Lexvo ISO 639-3 sameAs cross-link — both inherited from Thing
+      (no additional slots).
+    slot_usage:
+      id: { pattern: "^https://id\\.loc\\.gov/vocabulary/iso639-2/.+$" }
+      sameAs: { pattern: "^http://lexvo\\.org/id/iso639-3/.+$" }
+
+  Agent:
+    class_uri: prov:Agent
+    abstract: true
+    is_a: Thing
+    description: >-
+      A person or organization — used for creator.
+    slots:
+      - identifiers
+      - email
+      - location
+      - funder
+
+  Organization:
+    class_uri: schema:Organization
+    is_a: Agent
+    description: >-
+      An organization — used for publisher, funder, and the MCC fallback creator.
+
+  Location:
+    class_uri: schema:PostalAddress
+    exact_mappings: vcard:Address
+    description: >-
+      A postal address for an Organization. Standalone node (not a Thing).
+    slots:
+      - address
+      - city
+      - state
+      - country
+      - zipcode
+      - sameAs
+
+  Person:
+    class_uri: schema:Person
+    is_a: Agent
+    description: >-
+      A person — used for dataset/software creators, with optional identifier
+      (e.g. ORCID) strings; id/name inherited from Thing.
+
+  Place:
+    class_uri: schema:Place
+    is_a: Thing
+    exact_mappings: geonames:Feature
+    description: >-
+      A geographic place identified by its GeoNames Concept URI, dual-typed as
+      schema:Place and geonames:Feature. Carries the GeoNames feature code and
+      feature class.
+    slots:
+      - featureCode
+      - featureClass
+    slot_usage:
+      id: { pattern: "^https://sws\\.geonames\\.org/.+$" }
+
+  License:
+    class_uri: schema:CreativeWork
+    is_a: Thing
+    description: >-
+      A license governing the catalog metadata or source data. Emitted as a
+      CreativeWork-typed node (per its @JsonldType) carrying name/url from Thing;
+      no additional slots.
+    slot_usage:
+      id:
+        pattern: "^(https://www\\.apache\\.org/licenses/|http://www\\.ebi\\.ac\\.uk/swo/license/|https://creativecommons\\.org/|https://www\\.usa\\.gov/|https://www\\.nationalarchives\\.gov\\.uk/doc/open-government-licence/|https://github\\.com/etalab/licence-ouverte/|https://www\\.enzuzo\\.com/blog/|https://spdx\\.org/licenses/).+$"
+
+  DefinedTerm:
+    class_uri: schema:DefinedTerm
+    is_a: Thing
+    exact_mappings: skos:Concept
+    description: >-
+      A controlled-vocabulary term (topic, biological scale, type-or-record,
+      educational term, ...). It has a dual type set to the SKOS Concept type. The
+      SKOS crosswalks below are INSTANCE-LEVEL — each term carries its own
+      exactMatch/broadMatch IRI — which is exactly why they are slots on this
+      class and NOT slot-level exact_/broad_mappings on the referring properties.
+      (The source class carries a code comment stating the same.)
+    slots:
+      - displayName
+      - exactMatch
+      - broadMatch
+      - inDefinedTermSet
+    slot_usage:
+      inDefinedTermSet:
+        required: true                                   # layer 1
+        pattern: "^http://w3id\\.org/midas-metadata/(midas2|midas10|midas03|midas5)$"   # layer 2
+        description: >-
+          Which MIDAS controlled-vocabulary axis this term fills — NOT the ontology the term is
+          drawn from (that is the term's own id). Exactly one of four MIDAS axis IRIs: midas2
+          (topic), midas10 (digital object type / type-or-record), midas03 (geographic resolution),
+          midas5 (biological scale). Required so every term declares which field it is for; the
+          per-axis rules below then constrain the term id to that axis's accepted ontologies.
+    rules: # layer 3 — per-axis id-namespace (derived from emitted inventory)
+      - description: >-
+          Digital-object-type (type-or-record, midas10) terms: id from an accepted ontology —
+          OBO Library or the MIDAS metadata vocabulary. Specific term open.
+        preconditions:
+          slot_conditions:
+            inDefinedTermSet: { equals_string: "http://w3id.org/midas-metadata/midas10" }
+        postconditions:
+          slot_conditions:
+            id: { pattern: "^(http://purl\\.obolibrary\\.org/obo/|http://w3id\\.org/midas-metadata/).+$" }
+      - description: >-
+          Geographic-resolution (midas03) terms: id from JUSO, Wikidata, the GeoNames ontology,
+          or schema.org. Specific term open.
+        preconditions:
+          slot_conditions:
+            inDefinedTermSet: { equals_string: "http://w3id.org/midas-metadata/midas03" }
+        postconditions:
+          slot_conditions:
+            id: { pattern: "^(http://rdfs\\.co/juso/|https://www\\.wikidata\\.org/wiki/|http://www\\.geonames\\.org/ontology#|https?://schema\\.org/).+$" }
+      - description: >-
+          Biological-scale (midas5) terms: id from the MIDAS metadata vocabulary. Specific term open.
+        preconditions:
+          slot_conditions:
+            inDefinedTermSet: { equals_string: "http://w3id.org/midas-metadata/midas5" }
+        postconditions:
+          slot_conditions:
+            id: { pattern: "^http://w3id\\.org/midas-metadata/.+$" }
+      - description: >-
+          Topic (midas2) terms: id from an accepted ontology — OBO Library, the MIDAS metadata
+          vocabulary, EDAM, OntoDM-core, or LTER-Europe EnvThes. Specific term open. (Topic
+          vocabulary is under active re-work; widen this list as new source ontologies appear —
+          a non-breaking minor bump.)
+        preconditions:
+          slot_conditions:
+            inDefinedTermSet: { equals_string: "http://w3id.org/midas-metadata/midas2" }
+        postconditions:
+          slot_conditions:
+            id: { pattern: "^(http://purl\\.obolibrary\\.org/obo/|http://w3id\\.org/midas-metadata/|http://edamontology\\.org/|http://www\\.ontodm\\.com/OntoDM-core/|http://vocabs\\.lter-europe\\.net/EnvThes/).+$" }
+
+  DataCatalog:
+    class_uri: schema:DataCatalog
+    is_a: CreativeWork
+    exact_mappings: dcat:Catalog
+    description: >-
+      A data catalog a resource is included in (the MIDAS Catalog or another).
+      Common CreativeWork fields only; It is dual-typed (@type [schema:DataCatalog, dcat:Catalog]).
+
+  RelatedData:
+    class_uri: schema:CreativeWork
+    is_a: CreativeWork
+    description: >-
+      A related resource (publication, dataset, source page, related course),
+      emitted as a CreativeWork-typed node. The kind of relationship is carried
+      in its description; no slots beyond the inherited CreativeWork set.
+    slot_usage:
+      name: { required: false }
+      description: { required: false }
+
+  # ---- provenance value classes (from ProvenanceUtil) ----
+
+  ProvActivity:
+    class_uri: prov:Activity
+    description: The activity that generated a resource (PROV-O).
+    slots:
+      - id
+      - used
+      - wasAssociatedWith
+      - generated
+
+  ProvEntity:
+    class_uri: prov:Entity
+    description: >-
+      A PROV-O entity (this resource, or a source it derived from). `license`
+      is a schema:CreativeWork node (range License: @id + name + url), the same
+      representation as sourceLicense/DataDownload; `rights` is a plain
+      usage-statement literal under the global `rights` slot (emitted key
+      "rights"; predicate per the @context — confirm in the regenerated context).
+    slots:
+      - id
+      - name
+      - identifier
+      - license
+      - rights
+      - wasAttributedTo
+      - wasDerivedFrom
+      - wasGeneratedBy
+
+  ProvAgent:
+    class_uri: prov:Agent
+    description: A PROV-O agent (creator/author); id/name/url only.
+    slots:
+      - id
+      - name
+      - url
+
+  # ---- subtype-only value classes (consumed by the resource subtypes below) ----
+
+  DataDownload:
+    class_uri: schema:DataDownload
+    exact_mappings: dcat:Distribution
+    description: >-
+      A downloadable distribution of a dataset. Anonymous (no identifier) — projects
+      as an inlined blank node (PropertyValue/Location precedent); the media-type IRI
+      is a value (mediaType), not the node's identity.
+    slots:
+      - encodingFormat
+      - mediaType
+      - url
+      - license
+
+  ComputerLanguage:
+    class_uri: schema:ComputerLanguage
+    is_a: Thing
+    description: >-
+      A programming language (software programmingLanguage / learning-resource
+      programmingLanguage). name + sameAs from Thing; no additional slots.
+    slot_usage:
+      id: { pattern: "^http://dbpedia\\.org/resource/.+$" }
+
+  OperatingSystem:
+    class_uri: schema:OperatingSystem
+    is_a: Thing
+    description: >-
+      An operating system the software runs on; id = the dbpedia resource IRI, name from Thing.
+      (schema.org's OperatingSystem class — currently "new"/feedback area.)
+    slot_usage:
+      id: { pattern: "^http://dbpedia\\.org/resource/.+$" }
+
+  MediaType:
+    class_uri: dcterms:MediaType
+    description: >-
+      Reference to an IANA media type by its IRI — dcterms:MediaType is dcat:mediaType's
+      declared range. Identifier-only and referenced with inlined:false, so it renders as a
+      plain IRI string in JSON / Pydantic / JSON-Schema but as an @id resource node in
+      JSON-LD. This stub exists because gen-jsonld-context only emits @type:@id for
+      class-ranged slots (a uri/uriorcurie range stays an xsd:anyURI literal); it is the
+      generator-native way to give RDF/DCAT consumers a resource without changing the string
+      every JSON consumer sees. No local metadata — the media type is defined by IANA.
+    slots:
+      - id
+    slot_usage:
+      id:
+        pattern: "^((https://www\\.iana\\.org/assignments/media-types/|https://www\\.wikidata\\.org/wiki/|http://edamontology\\.org/|https://www\\.loc\\.gov/preservation/digital/formats/fdd/|http://justsolve\\.archiveteam\\.org/wiki/).+|http://ndjson\\.org/.*|https://jsonlines\\.org/.*)$"
+
+  WebResource:
+    class_uri: rdfs:Resource
+    description: >-
+      Reference to a web resource by its IRI — a landing page, access URL, or endpoint
+      (dcat:accessURL / dcat:landingPage range over rdfs:Resource). Same identifier-only,
+      inlined:false pattern and rationale as MediaType: a plain IRI string for JSON
+      consumers, an @id resource node for RDF/DCAT consumers.
+    slots:
+      - id
+
+  PropertyValue:
+    class_uri: schema:PropertyValue
+    description: >-
+      A structured characteristic (name/value) used in additionalProperty to carry                                                                                                                                                                                                         
+      dataset characteristics with no dedicated schema.org property, each                                                                                                                                                                                                                  
+      dispatch-keyed by propertyID. Standalone node (not a Thing) — these are                                                                                                                                                                                                              
+      anonymous structured values with no IRI of their own, so they project as                                                                                                                                                                                                             
+      inlined blank nodes; the term IRI lives on valueReference. Mirrors the                                                                                                                                                                                                               
+      Location precedent.
+    slots:
+      - name
+      - propertyID
+      - value
+      - valueReference
+
+  # ---- resource subtypes (each maps to a MIDAS type-or-record id) ----
+  # (DataCatalog is already defined in the value-classes section — it was needed there
+  #  as the range of includedInDataCatalog. Repository and Literature extend it.)
+
+  Dataset:
+    class_uri: schema:Dataset
+    is_a: CreativeWork
+    description: A dataset (type-or-record 1).
+    slots:
+      - distributions
+
+  SoftwareApplication:
+    class_uri: schema:SoftwareApplication
+    is_a: CreativeWork
+    description: A software application (type-or-record 2). `rights` is inherited from CreativeWork.
+    slots:
+      - applicationCategory
+      - applicationSubCategory
+      - additionalType
+      - encodingFormat
+      - programmingLanguage
+      - operatingSystems
+      - codeRepository
+    slot_usage:
+      encodingFormat:
+        multivalued: true
+        range: string
+
+  Dashboard:
+    class_uri: schema:SoftwareApplication
+    is_a: SoftwareApplication
+    description: >-
+      A dashboard (type-or-record 6). Emits as schema:SoftwareApplication with
+      applicationCategory="Dashboard" set at runtime; no additional slots.
+
+  Repository:
+    class_uri: schema:DataCatalog
+    is_a: DataCatalog
+    exact_mappings: dcat:Catalog
+    description: >-
+      A repository (type-or-record 7): a specialized DataCatalog. Emits as
+      dual-typed via inheritance.
+
+  Literature:
+    class_uri: schema:Collection
+    is_a: CreativeWork
+    description: A literature collection (type-or-record 8). Emits as schema:Collection.
+    slots:
+      - genre
+      - additionalType
+
+  ModelingStudy:
+    class_uri: schema:Collection
+    is_a: Literature
+    description: >-
+      A modeling-studies collection (type-or-record 9): Literature with
+      genre="modeling studies"; no additional slots.
+
+  DiseaseSpecificCollection:
+    class_uri: schema:Collection
+    is_a: Literature
+    description: >-
+      A disease-specific collection (type-or-record 10): Literature with
+      genre="disease-specific collection"; no additional slots.
+
+  LearningResource:
+    class_uri: schema:LearningResource
+    is_a: CreativeWork
+    description: An educational resource (type-or-record 16).
+    slots:
+      - educationalLevel
+      - educationalUse
+      - audience
+      - educationalObjective
+      - competencyRequired
+      - teaches
+      - learningResourceType
+      - provider
+      - timeRequired
+      - programmingLanguage
+      - dataRequirement
+
+  Course:
+    class_uri: schema:Course
+    is_a: LearningResource
+    description: A course (educational resource with course=true); adds a course instance.
+    slots:
+      - hasCourseInstance
+
+  CourseInstance:
+    class_uri: schema:CourseInstance
+    is_a: Thing
+    description: >-
+      An offering/instance of a Course. Extends Thing (consistent with
+      Person/Place/Language). courseMode carries an IRI when the mode has one,
+      else the mode name.
+    slots:
+      - courseMode
+      - instructor
+
+# -----------------------------------------------------------------------------
+# Slots
+#   default_range is string, so string-valued slots omit `range`.
+#   slot_uri is the authoritative emitted IRI (from the @context).
+# -----------------------------------------------------------------------------
+# -- OWL slot-mapping echoes (exact_mappings) --------------------------------
+# gen-owl bridges each class to its class_uri (skos:exactMatch / owl:equivalentClass)
+# but DROPS slot_uri for slots, so the generated OWL documents class->schema.org
+# mappings yet omits slot->schema.org mappings. For the 28 slots whose name differs
+# from their slot_uri's local part (e.g. catalogLicense->schema:license,
+# places->schema:spatialCoverage) the mapping is NOT inferable from the midas:{name}
+# identity, so each echoes its slot_uri via exact_mappings below -> the OWL then records
+# midas:{name} skos:exactMatch <slot_uri>. Slots whose name already matches their term
+# (about->schema:about, ...) are self-evident and deliberately NOT echoed. This is a
+# workaround for gen-owl's class/slot asymmetry; retire it if gen-owl learns to emit
+# slot_uri. exact_mappings is OWL/doc-only metadata and does not affect emission.
+slots:
+
+  # ============ Thing — identity & naming ============
+
+  id:
+    identifier: true
+    range: uriorcurie
+    description: >-
+      Unique identifier (IRI/URL) for this resource. In JSON-LD, @id represents
+      the globally unique identifier. (Maps to @id; the identifier slot is bound
+      to @id by gen-jsonld-context.)
+
+  identifier:
+    slot_uri: schema:identifier
+    recommended: true
+    description: >-
+      Primary persistent identifier for this resource (e.g., DOI, Handle, ARK,
+      or persistent URL). Can be a simple string or PropertyValue object.
+
+  name:
+    slot_uri: schema:name
+    exact_mappings:
+      - dcterms:title
+    description: Title or name of the digital object, page, or resource.
+
+  description:
+    slot_uri: schema:description
+    exact_mappings:
+      - dcterms:description
+    description: >-
+      Brief description of the data. For datasets: what is included (variables,
+      measurements), method/origin. For software: what it does, access
+      requirements, supported languages.
+
+  url:
+    slot_uri: schema:url
+    range: uri
+    description: >-
+      URL to the website that contains and/or describes the digital object or
+      person.
+
+  sameAs:
+    slot_uri: schema:sameAs
+    range: uri
+    description: >-
+      URL of a reference web page that unambiguously indicates the item's
+      identity (e.g., ORCID profile, Wikidata entry). NOTE: deliberately NOT
+      mapped to dcat:landingPage — although CreativeWork populates sameAs from
+      the landing page, this is a generic Thing slot (a Person's sameAs is an
+      ORCID, not a landing page), so the landing-page equivalence is builder
+      behavior, not a slot-level fact.
+
+  # ============ CreativeWork — primary ============
+
+  propertyID:
+    slot_uri: schema:propertyID
+    range: uri
+    description: >-
+      IRI of the characteristic (category) a PropertyValue represents — the
+      immutable dispatch key (midas10 digital object type, midas2 topic,
+      midas03 geographic resolution).
+  value:
+    slot_uri: schema:value
+    description: The characteristic's value (e.g. the resolution level or topic label).
+  valueReference:
+    inlined: true
+    slot_uri: schema:valueReference
+    range: DefinedTerm
+    description: >-
+      The value as a controlled-vocabulary DefinedTerm carrying its own IRI
+      (when minted) and inDefinedTermSet membership.
+
+  conformsTo:
+    inlined_as_list: true
+    slot_uri: dcterms:conformsTo
+    range: ConformsTo
+    multivalued: true
+    description: >-
+      Established standards or specifications that this metadata adheres to
+      (e.g., Schema.org, Bioschemas, Dublin Core, DCAT).
+
+  includedInDataCatalog:
+    inlined: true
+    slot_uri: schema:includedInDataCatalog
+    range: DataCatalog
+    description: >-
+      A collection of datasets in which this resource is included. Links to the
+      MIDAS Catalog or other data catalogs.
+
+  about:
+    inlined_as_list: true
+    slot_uri: schema:about
+    range: DefinedTerm
+    multivalued: true
+    recommended: true
+    close_mappings:
+      - dcterms:subject
+    description: >-
+      Subject matter of the content. Contains DefinedTerm objects (topics,
+      biological scales, types).
+
+  accessUrl:
+    slot_uri: dcat:accessURL
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - dcat:accessURL
+    range: WebResource
+    inlined: false
+    close_mappings:
+      - dcat:landingPage
+    description: >-
+      Direct URL to access the dataset or service. May be the same as the
+      landing page (populated from it).
+
+  mediaType:
+    slot_uri: dcat:mediaType
+    range: MediaType
+    inlined: false
+    description: >-
+      IANA media type of this distribution as a resolvable IRI (dcat:mediaType).
+      Projected as an IRI reference — mirrors accessUrl/endpointUrl.
+
+  keywords:
+    slot_uri: schema:keywords
+    range: string
+    multivalued: true
+    description: >-
+      Topic labels as plain text (schema:keywords), for keyword-based discovery
+      (e.g. Google Dataset Search). Topic names only — the same subject fact also
+      appears structured under `about`.
+
+  endpointUrl:
+    slot_uri: dcat:landingPage
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - dcat:landingPage
+    range: WebResource
+    inlined: false
+    recommended: true
+    description: >-
+      Web page where users can browse information about the dataset and access
+      download links. Canonical landing-page slot (the authoritative
+      landing-page predicate for external consumers).
+
+  endpointDescription:
+    slot_uri: dcterms:abstract
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - dcterms:abstract
+    description: >-
+      Summary describing how users can interact with the endpoint or landing
+      page.
+
+  inLanguage:
+    inlined_as_list: true
+    slot_uri: schema:inLanguage
+    range: Language
+    multivalued: true
+    recommended: true
+    close_mappings:
+      - dcterms:language
+    description: >-
+      Primary language(s) of the resource content. Language objects with ISO
+      639-2 codes; each also carries a Lexvo ISO 639-3 sameAs cross-link when
+      available.
+
+  creator:
+    inlined_as_list: true
+    slot_uri: schema:creator
+    range: Agent
+    multivalued: true
+    recommended: true
+    close_mappings:
+      - dcterms:creator
+    description: >-
+      Agent, which is Person(s) or organization, who created or compiled the data (may include
+      ORCID identifiers). Always emitted as an array: a set of Person objects,
+      or a single-element set holding the MIDAS Coordination Center Organization
+      when no creators are recorded. Range is Agent, the Person/Organization supertype,
+      tightened from the former Thing base so the generated JSON
+      Schema accepts subclass-specific slots.
+
+  lastDatePublished:
+    slot_uri: schema:datePublished
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:datePublished
+    recommended: true
+    description: >-
+      Last date the resource was made available (date of publication, or of the
+      most recent update/modified version). ISO 8601 (YYYY-MM-DD). Absence is
+      meaningful and intentional: per the source field definition a blank value
+      denotes a regularly/automatically-updated resource (no single last-published
+      date), and it is likewise emitted-absent when no date is recorded — MIDAS
+      never defaults it to a fabricated value. Shares schema:datePublished with
+      `datePublished` — two distinct properties under one IRI (see decision log).
+
+  datePublished:
+    slot_uri: schema:datePublished
+    description: >-
+      Date the resource was first made available to the public. ISO 8601
+      (YYYY-MM-DD).
+
+  dateModified:
+    slot_uri: schema:dateModified
+    recommended: true
+    description: >-
+      Date the resource was last modified or updated. ISO 8601 (YYYY-MM-DD).
+      Populated from the collection creation end date.
+
+  catalogLicense:
+    inlined: true
+    slot_uri: schema:license
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:license
+    range: License
+    close_mappings:
+      - dcterms:license
+    description: >-
+      License governing the metadata catalog itself (the hardcoded default),
+      separate from the license of the source data.
+
+  sourceLicense:
+    inlined: true
+    slot_uri: schema:license
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:license
+    range: License
+    recommended: true
+    description: >-
+      License governing the original source data or related resources. Shares
+      schema:license with catalogLicense (distinct slots, same predicate).
+
+  version:
+    slot_uri: schema:version
+    recommended: true
+    description: >-
+      Version identifier of the resource (numeric or named, e.g., '1.0', 'v2.3').
+
+  funder:
+    inlined: true
+    slot_uri: schema:funder
+    range: Organization
+    description: >-
+      Organization that funded the creation or maintenance of this resource.
+
+  rights:
+    slot_uri: schema:usageInfo
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:usageInfo
+    recommended: true
+    description: >-
+      Usage rights and conditions for accessing or using the resource
+      (e.g., 'Registration required', 'Academic use only').
+
+  accessibleForFree:
+    slot_uri: schema:isAccessibleForFree
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:isAccessibleForFree
+    range: boolean
+    recommended: true
+    description: >-
+      Whether the resource can be accessed at no cost to the user.
+
+  publisher:
+    inlined: true
+    slot_uri: schema:publisher
+    range: Organization
+    close_mappings:
+      - dcterms:publisher
+    description: >-
+      Organization responsible for making the resource available. For MIDAS
+      Catalog resources, the MIDAS Coordination Center.
+
+  places:
+    inlined_as_list: true
+    slot_uri: schema:spatialCoverage
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:spatialCoverage
+    range: Place
+    multivalued: true
+    close_mappings:
+      - dcterms:spatial
+    description: >-
+      Place objects with GeoNames references describing geographic locations
+      covered by the resource. Shares schema:spatialCoverage with
+      `spatialCoverage`.
+
+  additionalProperty:
+    inlined_as_list: true
+    slot_uri: schema:additionalProperty
+    range: PropertyValue
+    multivalued: true
+    description: >-
+      Aggregated dataset characteristics with no dedicated schema.org property,
+      each a self-describing PropertyValue keyed by propertyID to its MIDAS
+      category: geographic resolution (midas03), topic (midas2), digital object
+      type (midas10).
+
+  temporalCoverage:
+    slot_uri: schema:temporalCoverage
+    description: >-
+      Date range covered by the data. ISO 8601 interval
+      (YYYY-MM-DD/YYYY-MM-DD, or YYYY-MM-DD/.. for ongoing).
+
+  externalIdentifiers:
+    slot_uri: schema:identifier
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:identifier
+    multivalued: true
+    recommended: true
+    description: >-
+      External identifier strings (DOIs, URLs, etc.) that reference this
+      resource in other systems. Shares schema:identifier with `identifier`.
+
+  relatedData:
+    inlined_as_list: true
+    slot_uri: dcterms:relation
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - dcterms:relation
+    range: RelatedData
+    multivalued: true
+    description: >-
+      RelatedData (CreativeWork) objects describing publications, datasets, or
+      other resources related to this resource. The kind of relationship is
+      carried per-object in each RelatedData's description.
+
+  bibliographicCitation:
+    slot_uri: dcterms:bibliographicCitation
+    description: >-
+      Recommended citation for the resource (authorship, title, date, URL) in
+      standard academic citation format.
+
+  # ============ CreativeWork — provenance (PROV-O / PAV) ============
+
+  wasGeneratedBy:
+    inlined: true
+    slot_uri: prov:wasGeneratedBy
+    range: ProvActivity
+    description: >-
+      Activity that generated this resource. Links to a prov:Activity describing
+      the creation process.
+
+  wasDerivedFrom:
+    inlined: true
+    slot_uri: prov:wasDerivedFrom
+    range: ProvEntity
+    description: >-
+      Source entity from which this resource was derived.
+
+  pavCreatedBy:
+    inlined: true
+    slot_uri: pav:createdBy
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - pav:createdBy
+    range: ProvAgent
+    description: >-
+      Agent responsible for creating the resource (authorship-specific
+      counterpart to prov:wasGeneratedBy).
+
+  pavDerivedFrom:
+    slot_uri: pav:derivedFrom
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - pav:derivedFrom
+    description: >-
+      Source resource from which this version was derived (versioning emphasis).
+
+  # ============ ConformsTo ============
+
+  subjectAreas:
+    slot_uri: dcterms:subject
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - dcterms:subject
+    multivalued: true
+    description: Subject areas the standard covers.
+
+  standardType:
+    slot_uri: dcterms:type
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - dcterms:type
+    description: Type/category of the standard.
+
+  standardVersion:
+    slot_uri: pav:version
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - pav:version
+    range: string
+    description: >-
+      Version of the conformance standard this record was produced under. Set only on the
+      MIDAS Catalog JSON-LD Schema standard entry, sourced from MidasCatalogJsonLdSchema.VERSION.
+
+  # ============ Organization / Location ============
+
+  email:
+    slot_uri: schema:email
+    description: Contact email for the organization.
+
+  location:
+    inlined: true
+    slot_uri: schema:location
+    range: Location
+    description: Postal address of the organization.
+
+  address:
+    slot_uri: schema:streetAddress
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:streetAddress
+    description: Street address.
+
+  city:
+    slot_uri: schema:addressLocality
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:addressLocality
+    description: City / locality.
+
+  state:
+    slot_uri: schema:addressRegion
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:addressRegion
+    description: State / region.
+
+  country:
+    slot_uri: schema:addressCountry
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:addressCountry
+    description: Country.
+
+  zipcode:
+    slot_uri: schema:postalCode
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:postalCode
+    description: Postal / ZIP code.
+
+  # ============ Person ============
+
+  identifiers:
+    slot_uri: schema:identifier
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:identifier
+    multivalued: true
+    recommended: true
+    description: >-
+      External identifier strings for the person (e.g. ORCID). Shares
+      schema:identifier with identifier/externalIdentifiers. Curator-recommended
+      ("Creator Identifier — ID"); the backing registry entry carries the 6-arg
+      recommended flag. Although this is a nested Person-level slot, recommending
+      it is consistent with the model's identifiability stance: creator is
+      recommended, and identifier/externalIdentifiers (resource-level) are
+      recommended, so recommending the creator-level identifier extends the same
+      principle rather than introducing a new one. The flag emits as flat property
+      documentation (same as all recommended slots); it does not encode the
+      "nested under a recommended creator" conditionality, which is accepted as an
+      adequate representation. NOTE: there is no separate identifier-TYPE slot on
+      Person, so the "Creator Identifier — Type" recommendation has no distinct
+      emitted slot.
+
+  # ============ Place ============
+
+  featureCode:
+    slot_uri: geonames:featureCode
+    description: GeoNames feature code (e.g. PCLI). CURIE-compresses under the geonames prefix.
+
+  featureClass:
+    slot_uri: geonames:featureClass
+    description: GeoNames feature class (e.g. A, P). CURIE-compresses under the geonames prefix.
+
+  # ============ DefinedTerm ============
+
+  displayName:
+    slot_uri: schema:alternateName
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:alternateName
+    description: Human-readable display label for the term.
+
+  exactMatch:
+    slot_uri: skos:exactMatch
+    range: uriorcurie
+    description: >-
+      SKOS exact-match crosswalk IRI. Instance-level (per term), not a slot-level
+      mapping.
+
+  broadMatch:
+    slot_uri: skos:broadMatch
+    range: uriorcurie
+    description: >-
+      SKOS broad-match crosswalk IRI. Instance-level (per term), not a slot-level
+      mapping.
+
+  inDefinedTermSet:
+    slot_uri: schema:inDefinedTermSet
+    range: uriorcurie
+    description: IRI of the controlled vocabulary / term set the term belongs to.
+
+  # ============ Provenance (colon-prefixed keys are on the Stage-1 allowlist) ============
+  # prov: slots emit under colon-prefixed keys (prov:used, prov:generated, ...);
+  # gen-jsonld-context cannot put a colon in a key name, so the key-name divergence
+  # is expected/allowlisted — the slot_uri still matches.
+
+  used:
+    inlined_as_list: true
+    slot_uri: prov:used
+    range: ProvEntity
+    multivalued: true
+    description: Entities the activity used.
+
+  wasAssociatedWith:
+    inlined_as_list: true
+    slot_uri: prov:wasAssociatedWith
+    range: ProvAgent
+    multivalued: true
+    description: Agents associated with the activity.
+
+  generated:
+    inlined: true
+    slot_uri: prov:generated
+    range: ProvEntity
+    description: Entity generated by the activity.
+
+  wasAttributedTo:
+    inlined: true
+    slot_uri: prov:wasAttributedTo
+    range: ProvAgent
+    description: Agent the entity was attributed to.
+
+  license:
+    inlined: true
+    slot_uri: schema:license
+    range: License
+    description: >-
+      A schema:CreativeWork license node (id/name/url), used by provenance
+      entities (ProvEntity) and DataDownload. Distinct slot from
+      catalogLicense/sourceLicense but the same range (License) and predicate
+      (schema:license).
+
+  # ============ Dataset ============
+
+  distributions:
+    inlined_as_list: true
+    slot_uri: schema:distribution
+    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
+      - schema:distribution
+    range: DataDownload
+    multivalued: true
+    description: Downloadable distributions of the dataset. (Field is plural; IRI is singular schema:distribution.)
+
+  # ============ SoftwareApplication ============
+
+  applicationCategory:
+    slot_uri: schema:applicationCategory
+    description: >-
+      High-level application category. Also the runtime discriminator for
+      Dashboard (emits as schema:SoftwareApplication).
+
+  applicationSubCategory:
+    slot_uri: schema:applicationSubCategory
+    description: More specific application sub-category.
+
+  additionalType:
+    slot_uri: schema:additionalType
+    description: Additional rdf:type-style classification (used by SoftwareApplication and Literature).
+
+  programmingLanguage:
+    inlined_as_list: true
+    slot_uri: schema:programmingLanguage
+    range: ComputerLanguage
+    multivalued: true
+    description: Programming language(s). Shared by SoftwareApplication and LearningResource.
+
+  operatingSystems:
+    inlined_as_list: true
+    slot_uri: schema:operatingSystem
+    exact_mappings:        # -> OWL: echoes slot_uri (name 'operatingSystems' ≠ local part 'operatingSystem')
+      - schema:operatingSystem
+    range: OperatingSystem
+    multivalued: true
+    description: Operating system(s) the software runs on, as OperatingSystem nodes (id = dbpedia resource IRI).
+
+  codeRepository:
+    slot_uri: schema:codeRepository
+    range: uri
+    description: URL of the source-code repository.
+
+  encodingFormat:
+    slot_uri: schema:encodingFormat
+    description: Media/encoding format. Shared by DataDownload (single, per distribution) and
+      SoftwareApplication (multivalued, formats the software reads/writes).
+
+  # ============ Literature / Collection subtypes ============
+
+  genre:
+    slot_uri: schema:genre
+    description: >-
+      Genre of the collection. Also the runtime discriminator for ModelingStudy
+      ("modeling studies") and DiseaseSpecificCollection ("disease-specific collection").
+
+  audience:
+    inlined_as_list: true
+    slot_uri: schema:audience
+    range: DefinedTerm
+    multivalued: true
+    description: >-
+      Intended audience. Default shape is the LearningResource form (DefinedTerm,
+      multivalued); Literature overrides to a single string via slot_usage.
+
+  # ============ LearningResource / Course ============
+
+  educationalLevel:
+    inlined_as_list: true
+    slot_uri: schema:educationalLevel
+    range: DefinedTerm
+    multivalued: true
+    description: Educational level(s) the resource targets.
+
+  educationalUse:
+    inlined_as_list: true
+    slot_uri: schema:educationalUse
+    range: DefinedTerm
+    multivalued: true
+    description: Intended educational use(s).
+
+  educationalObjective:
+    inlined_as_list: true
+    slot_uri: lrmi:educationalObjective
+    range: DefinedTerm
+    multivalued: true
+    description: Learning objectives (LRMI vocabulary).
+
+  competencyRequired:
+    inlined_as_list: true
+    slot_uri: schema:competencyRequired
+    range: DefinedTerm
+    multivalued: true
+    description: Prerequisite competencies.
+
+  teaches:
+    inlined_as_list: true
+    slot_uri: schema:teaches
+    range: DefinedTerm
+    multivalued: true
+    description: Concepts/skills the resource teaches.
+
+  learningResourceType:
+    inlined_as_list: true
+    slot_uri: schema:learningResourceType
+    range: DefinedTerm
+    multivalued: true
+    description: Type/format of the learning resource.
+
+  provider:
+    inlined_as_list: true
+    slot_uri: schema:provider
+    range: Organization
+    multivalued: true
+    description: Organization(s) providing the resource.
+
+  timeRequired:
+    slot_uri: schema:timeRequired
+    description: Approximate time to complete, as an ISO 8601 duration.
+
+  dataRequirement:
+    inlined: true
+    slot_uri: lrmi:dataRequirement
+    range: DefinedTerm
+    description: Data prerequisite(s) for the resource (LRMI vocabulary).
+
+  hasCourseInstance:
+    inlined: true
+    slot_uri: schema:hasCourseInstance
+    range: CourseInstance
+    description: An offering/instance of the course.
+
+  courseMode:
+    slot_uri: schema:courseMode
+    multivalued: true
+    description: >-
+      Delivery mode(s) of a course instance (e.g. online, in-person, MOOC). Emits
+      the mode's IRI when available, else the mode name (iri-over-name) — so values
+      are strings that MAY be IRIs; modeled as string (not uriorcurie) because the
+      name fallback is not an IRI.
+
+  instructor:
+    slot_uri: schema:instructor
+    range: Person
+    multivalued: true
+    inlined_as_list: true
+    description: >-
+      Instructor(s) of a course, carried on the CourseInstance (schema:instructor is
+      defined only on CourseInstance, not on Course/LearningResource). Populated from
+      the collection's creator field when the educational resource is a course with
+      delivery modes; for non-course educational resources that field maps to
+      schema:creator instead. Range is Person per schema.org; MIDAS cannot guarantee
+      the party is a person, so an organization named as instructor still emits as a
+      Person node. No MCC fallback (unlike creator): absent when no instructor is recorded.

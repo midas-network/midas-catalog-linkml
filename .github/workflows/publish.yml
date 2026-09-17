@@ -1,0 +1,98 @@
+# Publish the MIDAS Catalog LinkML reference to GitHub Pages.
+#
+# TAG-GATED — this is the only path that deploys, and it runs ONLY on a v* release
+# tag. There is deliberately no trigger on push to main and no workflow_dispatch:
+# publishing is one-way and versioned, so every published site must correspond to a
+# tag someone deliberately pushed. A -SNAPSHOT model never publishes; the gate job
+# below enforces that before anything is generated.
+name: Publish reference site
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Read-only by default; the deploy job widens this for itself alone.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false   # never interrupt a release deploy mid-flight
+
+jobs:
+  # Separate job so the gate is visible as its own red/green check, and so nothing
+  # is generated — let alone uploaded — until the release is known to be publishable.
+  gate:
+    name: Release gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refuse SNAPSHOT / mismatched versions
+        run: tools/check_release_version.sh "${GITHUB_REF_NAME}"
+
+  build:
+    name: Build artifacts and site
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.11 is the version the pinned toolchain was frozen against; LinkML's
+      # generators are not output-stable across environments, and the published
+      # artifacts are meant to be reproducible from this tag.
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements-linkml.txt
+            requirements-docs.txt
+
+      - name: Install pinned toolchain
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-linkml.txt -r requirements-docs.txt
+
+      - name: Show toolchain versions
+        run: |
+          python --version
+          pip show linkml | sed -n '1,2p'
+
+      # Regenerates everything from src/midas-catalog.yaml: gen-jsonld-context
+      # (+ the required transform_context post-step), gen-json-schema, gen-owl,
+      # gen-doc, then mkdocs build --strict. Nothing is carried over from a
+      # previous release, so the artifacts cannot drift from the published model.
+      - name: Generate artifacts and build site
+        run: tools/build.sh
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      # Kept alongside the release for anyone who wants the machine artifacts
+      # without scraping the site.
+      - name: Upload generated artifacts as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: midas-catalog-artifacts-${{ github.ref_name }}
+          path: generated/
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write      # deploy to Pages
+      id-token: write   # OIDC token the deploy action verifies with
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

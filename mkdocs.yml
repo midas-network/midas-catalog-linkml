@@ -1,0 +1,71 @@
+# MkDocs configuration for the published MIDAS Catalog LinkML reference.
+#
+# The site is two things: one short hand-written orientation page (docs/index.md,
+# the only prose in this repo) and the generated reference (docs/reference/,
+# produced by gen-doc at release time and git-ignored). Keeping the hand-written
+# surface that small is deliberate — everything else is a function of the model.
+site_name: MIDAS Catalog LinkML Model
+site_description: >-
+  The LinkML model behind the MIDAS Coordination Center catalog — published
+  reference documentation and generated machine artifacts.
+site_url: https://midas-network.github.io/midas-catalog-linkml/
+repo_url: https://github.com/midas-network/midas-catalog-linkml
+repo_name: midas-network/midas-catalog-linkml
+edit_uri: ""   # the model is authored elsewhere; an "edit this page" link would lie
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.top
+    - navigation.sections
+    - content.code.copy
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+
+plugins:
+  - search
+
+nav:
+  - Overview: index.md
+  - Schema Reference: reference/index.md
+
+# gen-doc emits one page per class, slot and type and cross-links them from
+# reference/index.md. Listing ~130 generated pages in nav would be noise and would
+# have to be regenerated on every model change, so they are reachable by link and
+# by search instead. This entry keeps --strict from failing on them.
+not_in_nav: |
+  reference/**
+
+# Strictness is supplied by tools/build.sh (`mkdocs build --strict`), so a broken
+# internal link fails the release rather than shipping. gen-doc's index links to
+# every generated page; a page that stops being generated should surface in CI.

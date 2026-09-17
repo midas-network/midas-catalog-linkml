@@ -1,0 +1,19 @@
+# Build output — regenerated from src/midas-catalog.yaml by tools/build.sh on every
+# release. Committing any of it would create a second, stale copy of the model that
+# could disagree with the yaml.
+generated/
+docs/reference/
+docs/generated/
+site/
+
+# Local toolchain
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Agent / assistant context — local working notes, not part of the published repo.
+CLAUDE.md
+
+# OS / editor
+.DS_Store

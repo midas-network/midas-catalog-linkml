@@ -1,0 +1,13 @@
+# MkDocs toolchain for the published reference site.
+#
+# Pinned for the same reason the LinkML toolchain is (see requirements-linkml.txt):
+# the published site should be reproducible from a tag, not "whatever PyPI served
+# that day". Resolved and verified against a local dry-run build on 2026-09-15.
+#
+# Kept separate from requirements-linkml.txt so the two toolchains can be bumped
+# independently: the LinkML pin is a byte-for-byte artifact contract shared with
+# the private canonical repo, this one only affects site rendering.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+mkdocs-material-extensions==1.3.1
+pymdown-extensions==12.0
