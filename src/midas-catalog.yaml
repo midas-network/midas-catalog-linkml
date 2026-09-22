@@ -49,7 +49,7 @@
 id: https://w3id.org/midas-catalog/schema
 name: midas-catalog
 title: MIDAS Catalog Metadata Schema
-version: 1.0.0-SNAPSHOT
+version: 1.0.0
 description: >-
   LinkML representation of the MIDAS Coordination Center catalog's JSON-LD
   metadata model. Stage 1 covers the Thing identity/naming base and the shared
@@ -181,6 +181,12 @@ classes:
     slot_usage:
       name: { required: true }
       description: { required: true }
+      # Scoped here, NOT on the global slot: ProvEntity also declares wasDerivedFrom
+      # (entity-to-entity derivation) and is deliberately left single-valued.
+      # inlined_as_list matches how `used` declares the same ProvEntity range — without
+      # it LinkML inlines a multivalued identified range as a DICT keyed by id, and the
+      # emitters produce a list.
+      wasDerivedFrom: { multivalued: true, inlined_as_list: true }
 
   # ---- referenced value / nested classes (resolve the CreativeWork-base ranges) ----
 
@@ -207,7 +213,7 @@ classes:
       available, a Lexvo ISO 639-3 sameAs cross-link — both inherited from Thing
       (no additional slots).
     slot_usage:
-      id: { pattern: "^https://id\\.loc\\.gov/vocabulary/iso639-2/.+$" }
+      id: { pattern: "^(https://id\\.loc\\.gov/vocabulary/iso639-2/|http://w3id\\.org/midas-metadata/).+$" }
       sameAs: { pattern: "^http://lexvo\\.org/id/iso639-3/.+$" }
 
   Agent:
@@ -260,7 +266,7 @@ classes:
       - featureCode
       - featureClass
     slot_usage:
-      id: { pattern: "^https://sws\\.geonames\\.org/.+$" }
+      id: { pattern: "^(https://sws\\.geonames\\.org/|http://w3id\\.org/midas-metadata/).+$" }
 
   License:
     class_uri: schema:CreativeWork
@@ -271,7 +277,7 @@ classes:
       no additional slots.
     slot_usage:
       id:
-        pattern: "^(https://www\\.apache\\.org/licenses/|http://www\\.ebi\\.ac\\.uk/swo/license/|https://creativecommons\\.org/|https://www\\.usa\\.gov/|https://www\\.nationalarchives\\.gov\\.uk/doc/open-government-licence/|https://github\\.com/etalab/licence-ouverte/|https://www\\.enzuzo\\.com/blog/|https://spdx\\.org/licenses/).+$"
+        pattern: "^(https://www\\.apache\\.org/licenses/|http://www\\.ebi\\.ac\\.uk/swo/license/|https://creativecommons\\.org/|https://www\\.usa\\.gov/|https://www\\.nationalarchives\\.gov\\.uk/doc/open-government-licence/|https://github\\.com/etalab/licence-ouverte/|https://www\\.enzuzo\\.com/blog/|https://spdx\\.org/licenses/|http://w3id\\.org/midas-metadata/).+$"
 
   DefinedTerm:
     class_uri: schema:DefinedTerm
@@ -317,7 +323,7 @@ classes:
             inDefinedTermSet: { equals_string: "http://w3id.org/midas-metadata/midas03" }
         postconditions:
           slot_conditions:
-            id: { pattern: "^(http://rdfs\\.co/juso/|https://www\\.wikidata\\.org/wiki/|http://www\\.geonames\\.org/ontology#|https?://schema\\.org/).+$" }
+            id: { pattern: "^(http://rdfs\\.co/juso/|https://www\\.wikidata\\.org/wiki/|http://www\\.geonames\\.org/ontology#|https?://schema\\.org/|http://w3id\\.org/midas-metadata/).+$" }
       - description: >-
           Biological-scale (midas5) terms: id from the MIDAS metadata vocabulary. Specific term open.
         preconditions:
@@ -416,7 +422,7 @@ classes:
       A programming language (software programmingLanguage / learning-resource
       programmingLanguage). name + sameAs from Thing; no additional slots.
     slot_usage:
-      id: { pattern: "^http://dbpedia\\.org/resource/.+$" }
+      id: { pattern: "^(http://dbpedia\\.org/resource/|http://w3id\\.org/midas-metadata/).+$" }
 
   OperatingSystem:
     class_uri: schema:OperatingSystem
@@ -425,7 +431,7 @@ classes:
       An operating system the software runs on; id = the dbpedia resource IRI, name from Thing.
       (schema.org's OperatingSystem class — currently "new"/feedback area.)
     slot_usage:
-      id: { pattern: "^http://dbpedia\\.org/resource/.+$" }
+      id: { pattern: "^(http://dbpedia\\.org/resource/|http://w3id\\.org/midas-metadata/).+$" }
 
   MediaType:
     class_uri: dcterms:MediaType
@@ -441,7 +447,7 @@ classes:
       - id
     slot_usage:
       id:
-        pattern: "^((https://www\\.iana\\.org/assignments/media-types/|https://www\\.wikidata\\.org/wiki/|http://edamontology\\.org/|https://www\\.loc\\.gov/preservation/digital/formats/fdd/|http://justsolve\\.archiveteam\\.org/wiki/).+|http://ndjson\\.org/.*|https://jsonlines\\.org/.*)$"
+        pattern: "^((https://www\\.iana\\.org/assignments/media-types/|https://www\\.wikidata\\.org/wiki/|http://edamontology\\.org/|https://www\\.loc\\.gov/preservation/digital/formats/fdd/|http://justsolve\\.archiveteam\\.org/wiki/|http://w3id\\.org/midas-metadata/).+|http://ndjson\\.org/.*|https://jsonlines\\.org/.*)$"
 
   WebResource:
     class_uri: rdfs:Resource
@@ -928,7 +934,9 @@ slots:
     slot_uri: prov:wasDerivedFrom
     range: ProvEntity
     description: >-
-      Source entity from which this resource was derived.
+      Source entity from which this resource was derived. Multivalued on
+      CreativeWork (see its slot_usage) where a record may derive from several
+      sources; single-valued on ProvEntity.
 
   pavCreatedBy:
     inlined: true
@@ -942,10 +950,13 @@ slots:
 
   pavDerivedFrom:
     slot_uri: pav:derivedFrom
+    multivalued: true
     exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
       - pav:derivedFrom
     description: >-
-      Source resource from which this version was derived (versioning emphasis).
+      Source resources from which this version was derived, one IRI per source
+      (versioning emphasis). Multivalued: PAV permits repeated derivation, and a
+      record built from several sources derives from all of them.
 
   # ============ ConformsTo ============
 
