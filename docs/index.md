@@ -62,13 +62,35 @@ installed, `gen-pydantic`, `gen-java` and `gen-typescript` produce typed classes
 the YAML, so downstream code constructs MIDAS-shaped records as objects rather than
 hand-written dictionaries.
 
+## A note on controlled vocabularies
+
+**The model constrains where a term comes from, not which term it is.** Where a slot carries
+a controlled-vocabulary value, the model requires the term's identifier to originate from an
+**approved ontology** for that field — OBO, GeoNames, schema.org, the MIDAS vocabulary, and so
+on, depending on the axis — expressed as a per-slot `pattern` on the namespace. It does **not**
+enumerate the specific terms.
+
+This is deliberate. Constraining the *source* rather than the *set of values* keeps the model
+open: a term newly drawn from an already-approved ontology validates with no change to the
+model, so the model need not be re-released each time a legitimate new term comes into use. An
+`enumeration` would do the opposite — pin validation to the exact terms in use today and reject
+everything else, **including terms from the same approved sources that simply haven't been used
+yet**. We chose not to tie the model to that fixed list.
+
+As a result, this model defines **no enumerations** — the Enumerations section of the
+[Schema Reference](reference/index.md) is intentionally empty — and no subsets. (A secondary
+benefit of patterns over enums: an `enumeration` also causes the generated JSON-LD context to
+be scoped under `schema:DefinedTerm`, whereas per-slot patterns leave the published context
+unchanged.)
+
 ## More
 
-- Background and narrative: *LinkML at MIDAS* — **[WordPress page — link to be added]**
+- Background and narrative: [LinkML at MIDAS](https://midasnetwork.us/linkml-at-midas/)
 - LinkML itself: [linkml.io](https://linkml.io/) ·
   [generator documentation](https://linkml.io/linkml/generators/)
-- The MIDAS catalog: [midasnetwork.us](https://midasnetwork.us/)
-
+- The MIDAS network: [midasnetwork.us](https://midasnetwork.us/)
+- The MIDAS Catalog: [catalog.midasnetwork.us](https://catalog.midasnetwork.us/)
+- 
 !!! note "Versioning"
     This site is published only from a tagged, frozen release — never from a
     `-SNAPSHOT` model. The version shown in the reference is the version of the model

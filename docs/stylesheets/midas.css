@@ -1,0 +1,164 @@
+/* ============================================================================
+   MIDAS Catalog LinkML reference — brand overrides for Material for MkDocs.
+
+   Aligns the generated reference to the MIDAS documentation look — the
+   schema.org-architecture doc and the "LinkML at MIDAS" page (WordPress),
+   whose styling lives in header.html. Two distinct blues (this was the fix):
+     • header bar  → #255392  (the lighter hero blue, next to the title)
+     • headings/links/code → #110A68 (the dark navy of content-block headers)
+
+   Overrides Material's CSS *variables* (theme-supported, upgrade-safe) rather
+   than restyling its DOM. Presentation only — no effect on the model/content.
+
+   INSTALL: docs/stylesheets/midas.css  +  mkdocs.yml extra_css (already added).
+   PREVIEW: `mkdocs serve` and edit live.
+   ============================================================================ */
+
+:root {
+    --midas-navy:       #110A68;   /* dark navy — heading text, links, inline code   */
+    --midas-header:     #255392;   /* header bar — the lighter hero blue             */
+    --midas-navy-mid:   #4a4494;   /* secondary                                       */
+    --midas-navy-light: #8884b8;   /* muted                                           */
+    --midas-lavender:   #a8a0e0;   /* light-on-dark (slate scheme)                    */
+    --midas-section:    #ffffff;   /* page background — white                                */
+    --midas-tint:       #F0F4FF;   /* light-blue section / code-chip fill (header.html callout.info) */
+    --md-code-font: "Courier New", Courier, monospace;   /* match the WordPress docs */
+}
+
+/* ---- Light scheme (default) ---- */
+[data-md-color-scheme="default"] {
+    --md-primary-fg-color:        var(--midas-header);    /* header bar = hero blue (#255392) */
+    --md-primary-fg-color--light: var(--midas-navy-mid);
+    --md-primary-fg-color--dark:  var(--midas-navy);
+    --md-accent-fg-color:         var(--midas-header);    /* hover/focus accents             */
+    --md-typeset-a-color:         var(--midas-navy);      /* links = dark navy               */
+
+    /* TENTATIVE — page background = the light-blue section tint. If it reads wrong
+       in preview, delete just this line to fall back to Material's white. */
+    --md-default-bg-color:        var(--midas-section);
+
+    --md-code-fg-color:           #24292e;   /* crisp near-black base for light-mode code */
+    --md-primary-bg-color:        #ffffff;   /* header text/icons = white on the #255392 bar */
+}
+
+/* ---- Dark scheme (slate): same hero-blue header; lighten text so it stays legible ---- */
+[data-md-color-scheme="slate"] {
+    --md-primary-fg-color:        var(--midas-header);
+    --md-primary-fg-color--light: var(--midas-navy-light);
+    --md-primary-fg-color--dark:  var(--midas-navy);
+    --md-accent-fg-color:         var(--midas-lavender);
+    --md-typeset-a-color:         var(--midas-lavender);
+    --md-primary-bg-color:        #ffffff;
+}
+
+/* ---- Headings: brand navy (light) / lavender (dark). NO weight change — Material's
+   default heading weights are kept. ---- */
+[data-md-color-scheme="default"] .md-typeset h1,
+[data-md-color-scheme="default"] .md-typeset h2,
+[data-md-color-scheme="default"] .md-typeset h3,
+[data-md-color-scheme="default"] .md-typeset h4,
+[data-md-color-scheme="default"] .md-typeset h5,
+[data-md-color-scheme="default"] .md-typeset h6 {
+    color: var(--midas-navy);
+}
+[data-md-color-scheme="slate"] .md-typeset h1,
+[data-md-color-scheme="slate"] .md-typeset h2,
+[data-md-color-scheme="slate"] .md-typeset h3,
+[data-md-color-scheme="slate"] .md-typeset h4,
+[data-md-color-scheme="slate"] .md-typeset h5,
+[data-md-color-scheme="slate"] .md-typeset h6 {
+    color: var(--midas-lavender);
+}
+
+/* ---- Inline code: pin light-scheme code to navy on the tint → ~13:1, comfortably AA
+   (Material's default fg was the borderline-contrast risk). Dark keeps Material's default. ---- */
+[data-md-color-scheme="default"] .md-typeset :not(pre) > code {
+    color: #4A4789;                      /* softer navy for code — distinct from heading navy */
+    background-color: var(--midas-tint);
+}
+.md-typeset :not(pre) > code {          /* INLINE code only — NOT <pre><code> blocks */
+    border-radius: 3px;
+    font-size: 1em;
+}
+
+/* Table code chips: compact. The 1em above reads large in dense cells (e.g. the artifacts
+   table), and helps midas-catalog.context.jsonld stop wrapping. Scoped to tables so inline
+   prose code keeps 1em. Delete this block if you'd rather the table chips be 1em too. */
+.md-typeset table code {
+    font-size: 0.85em;
+}
+
+/* ---- Code blocks: keep Material's LIGHT ground, darken the *tokens* so they are crisp AND AA
+   (Material's default light Pygments was pastel/low-contrast — the real culprit; a dark ground
+   tested worse to read). Light scheme only — dark scheme keeps Material's readable light-on-dark
+   default. First rule forces any uncovered Pygments class to the dark base, so nothing stays pale.
+   Ratios on Material's light code ground: keys ~15:1, strings ~5.8:1, comments ~5.6:1, base ~13:1. */
+[data-md-color-scheme="default"] .md-typeset .highlight span { color: #24292e; }
+[data-md-color-scheme="default"] .md-typeset .highlight .nt,
+[data-md-color-scheme="default"] .md-typeset .highlight .k,
+[data-md-color-scheme="default"] .md-typeset .highlight .kc,
+[data-md-color-scheme="default"] .md-typeset .highlight .kt {
+    color: #110A68;                              /* keys / keywords — navy */
+}
+[data-md-color-scheme="default"] .md-typeset .highlight .s,
+[data-md-color-scheme="default"] .md-typeset .highlight .s1,
+[data-md-color-scheme="default"] .md-typeset .highlight .s2,
+[data-md-color-scheme="default"] .md-typeset .highlight .l,
+[data-md-color-scheme="default"] .md-typeset .highlight .mi,
+[data-md-color-scheme="default"] .md-typeset .highlight .mf {
+    color: #0a6b3a;                              /* strings / scalars / numbers — dark green */
+}
+[data-md-color-scheme="default"] .md-typeset .highlight .c,
+[data-md-color-scheme="default"] .md-typeset .highlight .c1,
+[data-md-color-scheme="default"] .md-typeset .highlight .cm {
+    color: #5f5a7a; font-style: italic;          /* comments — muted but AA */
+}
+
+/* ---- Optional polish: admonitions toward header.html's callout palette. Safe to delete. ---- */
+[data-md-color-scheme="default"] .md-typeset .admonition.note,
+[data-md-color-scheme="default"] .md-typeset .admonition.info,
+[data-md-color-scheme="default"] .md-typeset details.note,
+[data-md-color-scheme="default"] .md-typeset details.info {
+    border-color: var(--midas-navy-mid);
+}
+[data-md-color-scheme="default"] .md-typeset .note > .admonition-title,
+[data-md-color-scheme="default"] .md-typeset .info > .admonition-title,
+[data-md-color-scheme="default"] .md-typeset .note > summary,
+[data-md-color-scheme="default"] .md-typeset .info > summary {
+    background-color: var(--midas-tint);      /* light scheme only — unscoped, this failed dark mode */
+    border-color: var(--midas-navy-mid);
+}
+
+/* ---- Contrast fixes from the axe/WAVE pass ---------------------------------------------------
+   Two elements failed because they use colours Material *derives from* or *defaults around* the
+   custom primary — not values this file set directly, which is why hand-computing missed them. ---- */
+
+/* Header title + current-page topic: force white on the #255392 bar. Material derived a muted
+   topic colour (#3e669e) → 1.31:1. The var above sets it; this guarantees it on the elements. */
+.md-header__title,
+.md-header__topic,
+.md-header .md-ellipsis {
+    color: #ffffff;
+}
+
+/* Footer copyright: Material's default #7f7f7f on its #171717 footer is 4.47:1 (just under AA).
+   Lighten to ~7:1. */
+.md-footer-meta .md-copyright,
+.md-footer-meta .md-copyright a {
+    color: #a3a3a3;
+}
+
+/* ---- Links from the axe pass ----------------------------------------------------------------
+   link-in-text-block: in-text links must be distinguishable from body text without relying on
+   colour. Underline content links (both schemes) — also matches header.html, which underlines. */
+.md-typeset a:not(.headerlink) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+/* Dark-mode link colour: force lavender. Material otherwise derives a bright blue (#5488e8) that
+   fails on the dark code-chip ground (4.12:1); lavender on that ground is ~6:1. The second
+   selector covers code *inside* a link (the artifact table), which inherits the link colour. */
+[data-md-color-scheme="slate"] .md-typeset a,
+[data-md-color-scheme="slate"] .md-typeset a code {
+    color: var(--midas-lavender);
+}
