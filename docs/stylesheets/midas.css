@@ -2,7 +2,7 @@
    MIDAS Catalog LinkML reference — brand overrides for Material for MkDocs.
 
    Aligns the generated reference to the MIDAS documentation look — the
-   schema.org-architecture doc and the "LinkML at MIDAS" page (WordPress),
+   schema.org-architecture doc and the "LinkML for MIDAS Catalog" page (WordPress),
    whose styling lives in header.html. Two distinct blues (this was the fix):
      • header bar  → #255392  (the lighter hero blue, next to the title)
      • headings/links/code → #110A68 (the dark navy of content-block headers)

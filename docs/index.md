@@ -85,7 +85,7 @@ unchanged.)
 
 ## More
 
-- Background and narrative: [LinkML at MIDAS](https://midasnetwork.us/linkml-at-midas/)
+- Background and narrative: [LinkML for MIDAS Catalog](https://midasnetwork.us/linkml-for-midas-catalog/)
 - LinkML itself: [linkml.io](https://linkml.io/) ·
   [generator documentation](https://linkml.io/linkml/generators/)
 - The MIDAS network: [midasnetwork.us](https://midasnetwork.us/)

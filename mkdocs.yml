@@ -60,7 +60,7 @@ plugins:
   - search
 
 # Brand overrides — pins Material to the MIDAS documentation look (#120B68 navy + Lora),
-# matching the schema.org-doc / "LinkML at MIDAS" WordPress pages. Presentation only.
+# matching the schema.org-doc / "LinkML for MIDAS Catalog" WordPress pages. Presentation only.
 extra_css:
   - stylesheets/midas.css
 # Accessibility shim: names Material's search dialog (axe aria-dialog-name). Framework default;
