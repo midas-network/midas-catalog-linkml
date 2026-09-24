@@ -59,7 +59,10 @@ echo "-- gen-owl"
 run gen-owl "$SCHEMA" > "$GENERATED/midas-catalog.owl.ttl"
 
 echo "-- gen-doc"
-run gen-doc "$SCHEMA" -d "$REFERENCE" --subfolder-type-separation
+# --truncate-descriptions false: by default gen-doc cuts every table-cell description
+# at the first "." (even inside "schema.org" or "e.g.") and at 80 chars. Off, it
+# emits the full text with newlines joined as <br>, which keeps table rows intact.
+run gen-doc "$SCHEMA" -d "$REFERENCE" --subfolder-type-separation --truncate-descriptions false
 
 # The machine artifacts have to be reachable from the site, or generating them in a
 # release job accomplishes nothing. MkDocs only serves what is under docs/, so mirror
