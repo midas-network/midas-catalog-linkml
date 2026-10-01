@@ -31,13 +31,12 @@
 #     identity/naming slots, so Thing is their shared inheritance home.
 #   - DefinedTerm-valued slots range over the DefinedTerm CLASS (not enums),
 #     preserving the jsonld -> LinkML -> jsonld round-trip.
-#   - recommended is tagged on the CANONICAL slot only (12 total); derived FAIR
+#   - recommended is tagged on the CANONICAL slot only (13 total); derived FAIR
 #     mirrors stay recommended:false and are linked to their canonical via
 #     mapping slots. Strength: exact_mappings ONLY for true cross-vocabulary
 #     synonyms (schema:name <-> dcterms:title, schema:description <->
 #     dcterms:description); close_mappings for everything else, incl. same-datum
-#     value copies (accessUrl -> dcat:landingPage ->
-#     schema:datePublished) and projections. The two synonym exact_mappings live
+#     value copies (accessUrl -> dcat:landingPage) and projections. The two synonym exact_mappings live
 #     on the canonical name/description slots, since their dct mirror slots were
 #     collapsed; surviving mirrors carry their own close_mappings.
 #   - No maximum_cardinality anywhere (the model has no upper bounds).
@@ -49,7 +48,7 @@
 id: https://w3id.org/midas-catalog/schema
 name: midas-catalog
 title: MIDAS Catalog Metadata Schema
-version: 1.0.0
+version: 1.0.1
 description: >-
   LinkML representation of the MIDAS Coordination Center catalog's JSON-LD
   metadata model. Stage 1 covers the Thing identity/naming base and the shared
@@ -62,7 +61,7 @@ default_prefix: midas   # MIDAS's own namespace (the LinkML-recommended pattern:
   # namespace — but it is INERT: every emitted key has an explicit term
   # definition, so nothing falls through to @vocab (verified: 0 undefined keys).
   # Emitted term IRIs are unchanged (name -> schema:name,
-  # catalogLicense -> schema:license, ...); only the OWL element-definition
+# catalogLicense -> schema:license, ...); only the OWL element-definition
 # IRIs move from schema:{name} to honest midas:{name}.
 
 prefixes:
@@ -153,13 +152,11 @@ classes:
       - includedInDataCatalog
       - about
       - keywords
-      - accessUrl
       - endpointUrl
-      - endpointDescription
       - inLanguage
       - creator
-      - lastDatePublished
       - datePublished
+      - sdDatePublished
       - dateModified
       - catalogLicense
       - sourceLicense
@@ -221,8 +218,11 @@ classes:
     abstract: true
     is_a: Thing
     description: >-
-      A person or organization — used for creator.
+      A person or organization — used for creator. Concrete subclass is selected
+      per node by agentType (curated is_person flag: true -> Person, otherwise
+      Organization).
     slots:
+      - agentType
       - identifiers
       - email
       - location
@@ -403,15 +403,18 @@ classes:
   # ---- subtype-only value classes (consumed by the resource subtypes below) ----
 
   DataDownload:
-    class_uri: schema:DataDownload
-    exact_mappings: dcat:Distribution
+    class_uri: dcat:Distribution
     description: >-
-      A downloadable distribution of a dataset. Anonymous (no identifier) — projects
-      as an inlined blank node (PropertyValue/Location precedent); the media-type IRI
-      is a value (mediaType), not the node's identity.
+      A distribution of a dataset, modeled as an access point: the landing page is
+      its dcat:accessURL (and schema:url). It does not link a direct file (no
+      contentUrl/downloadURL), so it is deliberately not a schema:DataDownload.
+      encodingFormat/mediaType describe the data available through it. Anonymous
+      (no identifier) — projects as an inlined blank node (PropertyValue/Location
+      precedent); the media-type IRI is a value (mediaType), not the node's identity.
     slots:
       - encodingFormat
       - mediaType
+      - accessUrl
       - url
       - license
 
@@ -700,8 +703,8 @@ slots:
     close_mappings:
       - dcat:landingPage
     description: >-
-      Direct URL to access the dataset or service. May be the same as the
-      landing page (populated from it).
+      Access point for the distribution: the landing page where the data can be
+      browsed and obtained (DCAT allows a landing page as accessURL).
 
   mediaType:
     slot_uri: dcat:mediaType
@@ -732,14 +735,6 @@ slots:
       download links. Canonical landing-page slot (the authoritative
       landing-page predicate for external consumers).
 
-  endpointDescription:
-    slot_uri: dcterms:abstract
-    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
-      - dcterms:abstract
-    description: >-
-      Summary describing how users can interact with the endpoint or landing
-      page.
-
   inLanguage:
     inlined_as_list: true
     slot_uri: schema:inLanguage
@@ -762,32 +757,35 @@ slots:
     close_mappings:
       - dcterms:creator
     description: >-
-      Agent, which is Person(s) or organization, who created or compiled the data (may include
-      ORCID identifiers). Always emitted as an array: a set of Person objects,
-      or a single-element set holding the MIDAS Coordination Center Organization
-      when no creators are recorded. Range is Agent, the Person/Organization supertype,
-      tightened from the former Thing base so the generated JSON
-      Schema accepts subclass-specific slots.
+      Agent(s) who created or compiled the data — each a Person or an
+      Organization, selected per node by agentType from the curated is_person
+      flag (may include ORCID identifiers). Always emitted as an array; a
+      single-element set holding the MIDAS Coordination Center Organization when
+      no creators are recorded. Range is Agent, the Person/Organization supertype,
+      so the generated JSON Schema accepts either subclass.
 
-  lastDatePublished:
-    slot_uri: schema:datePublished
-    exact_mappings:        # -> OWL: echoes slot_uri (see slots-header note)
-      - schema:datePublished
-    recommended: true
+  agentType:
+    designates_type: true
+    range: uriorcurie
     description: >-
-      Last date the resource was made available (date of publication, or of the
-      most recent update/modified version). ISO 8601 (YYYY-MM-DD). Absence is
-      meaningful and intentional: per the source field definition a blank value
-      denotes a regularly/automatically-updated resource (no single last-published
-      date), and it is likewise emitted-absent when no date is recorded — MIDAS
-      never defaults it to a fabricated value. Shares schema:datePublished with
-      `datePublished` — two distinct properties under one IRI (see decision log).
+      Designates the concrete Agent subclass of this node (schema:Person or
+      schema:Organization), set from the curated collection_creator.is_person flag.
 
   datePublished:
     slot_uri: schema:datePublished
+    recommended: true
     description: >-
-      Date the resource was first made available to the public. ISO 8601
-      (YYYY-MM-DD).
+      Last date the resource was made available (date of publication, or of the
+      most recent update/modified version), from the curated Last Publication
+      Date. ISO 8601 (YYYY-MM-DD). Absence is meaningful: a blank value denotes a
+      regularly/automatically-updated resource, and MIDAS never defaults it.
+
+  sdDatePublished:
+    slot_uri: schema:sdDatePublished
+    description: >-
+      Date MIDAS published this structured-data record (when curation of the
+      record was completed). A fact about the metadata, not the dataset: it is
+      never used as the dataset's datePublished. ISO 8601 (YYYY-MM-DD).
 
   dateModified:
     slot_uri: schema:dateModified
@@ -1134,7 +1132,10 @@ slots:
       - schema:distribution
     range: DataDownload
     multivalued: true
-    description: Downloadable distributions of the dataset. (Field is plural; IRI is singular schema:distribution.)
+    description: >-
+      Distributions of the dataset, one per available data format, each an
+      access point (dcat:Distribution) whose accessURL is the landing page.
+      (Field is plural; IRI is singular schema:distribution.)
 
   # ============ SoftwareApplication ============
 

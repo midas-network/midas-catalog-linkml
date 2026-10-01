@@ -30,6 +30,15 @@ Two different intents share one LinkML range:
                  emits plain literals. Dropping the coercion makes L agree with S
                  and keeps the value a literal. These lose `"@type"` entirely.
 
+  TO_RDF_TYPE    type-designator slots (`designates_type: true`). gen-jsonld-context
+                 emits them as an ordinary xsd:anyURI-literal property under the
+                 default prefix (e.g. midas:agentType "schema:Person"^^xsd:anyURI),
+                 which yields no rdf:type at all. They are rewritten to
+                 {"@id": rdf:type, "@type": "@vocab"} so the CURIE value expands to a
+                 class IRI and the node gets a real rdf:type triple. Not the "@type"
+                 keyword alias: that alias leaks into compaction and renames every
+                 node's type key (designator probe, 2026-10-01, variant A rejected).
+
 Each key is listed explicitly with the `@id` it is expected to carry. If the
 generated context ever stops matching those expectations (renamed slot, changed
 slot_uri, upstream LinkML behaviour change) this script FAILS rather than
@@ -61,6 +70,14 @@ STRIP_DATATYPE = {
     "propertyID": "schema:propertyID",
     "inDefinedTermSet": "schema:inDefinedTermSet",
 }
+# key -> expected "@id" as generated (relative: resolves through @vocab to midas:).
+# The full rdf:type IRI is written so the term does not depend on an `rdf` prefix
+# being declared in the context.
+RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+TO_RDF_TYPE = {
+    "agentType": "agentType",
+}
+TO_RDF_TYPE_TERM = {"@id": RDF_TYPE, "@type": "@vocab"}
 
 
 def main():
@@ -117,6 +134,22 @@ def main():
         del entry["@type"]
         changed.append((key, before, dict(entry)))
 
+    for key, expected_id in sorted(TO_RDF_TYPE.items()):
+        entry = ctx.get(key)
+        if entry == TO_RDF_TYPE_TERM:
+            already.append(key)
+            continue
+        entry = check(key, expected_id)
+        if entry is None:
+            continue
+        before = dict(entry)
+        if entry.get("@type") != ANYURI:
+            errors.append("%s: expected @type %r, found %r"
+                          % (key, ANYURI, entry.get("@type")))
+            continue
+        ctx[key] = dict(TO_RDF_TYPE_TERM)
+        changed.append((key, before, dict(TO_RDF_TYPE_TERM)))
+
     if errors:
         sys.stderr.write("transform_context.py: REFUSING to write\n")
         for e in errors:
@@ -138,8 +171,8 @@ def main():
         json.dump(doc, fh, indent=3)
 
     print("transform_context.py: %s -> %s" % (in_path, out_path))
-    print("  allow-list: %d flip-to-node, %d strip-datatype"
-          % (len(FLIP_TO_NODE), len(STRIP_DATATYPE)))
+    print("  allow-list: %d flip-to-node, %d strip-datatype, %d to-rdf-type"
+          % (len(FLIP_TO_NODE), len(STRIP_DATATYPE), len(TO_RDF_TYPE)))
     for key, before, after in changed:
         print("  CHANGED %-18s %s  ->  %s"
               % (key, json.dumps(before, sort_keys=True), json.dumps(after, sort_keys=True)))
