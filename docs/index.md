@@ -17,7 +17,7 @@ The MIDAS Catalog publishes every record in two forms, and both describe the sam
 - **The LinkML form**, built from this model, follows the model exactly. It's for people who want to
   validate records against the model, generate code from it, or build on it.
 
-Neither is generated from the other, and neither replaces the other. For more background, see
+For more background, see
 [LinkML for MIDAS Catalog](https://midasnetwork.us/linkml-for-midas-catalog/).
 
 ## Why LinkML
@@ -34,7 +34,8 @@ Neither is generated from the other, and neither replaces the other. For more ba
 **Read the model.** Start at the [Schema Reference](reference/index.md). `CreativeWork` is the shared base
 that every MIDAS resource type builds on, and `Thing` holds the identity and naming fields every node has.
 
-**Import it.** The model's permanent identifier is `https://w3id.org/midas-catalog/schema`.
+**Import it.** To import the model into your own LinkML model, use the published YAML at its permanent
+address: [`https://w3id.org/midas-catalog/linkml/generated/midas-catalog.yaml`](https://w3id.org/midas-catalog/linkml/generated/midas-catalog.yaml).
 
 **Use the generated files.** Each is regenerated from the model at every release:
 
@@ -54,7 +55,7 @@ as objects instead of hand-written dictionaries.
 
 **The model checks where a term comes from, not which term it is.** For fields that take a
 controlled-vocabulary value, the model requires the term's identifier to come from an approved source for
-that field (OBO ontologies, GeoNames, schema.org, the MIDAS vocabulary and so on): it checks that the
+that field (OBO ontologies, GeoNames, schema.org, the MIDAS Ontology and so on): it checks that the
 identifier starts with that source's web address. The model doesn't list the individual terms.
 
 That's deliberate. A list of allowed terms (an *enumeration*) would accept only the terms in use today, and
